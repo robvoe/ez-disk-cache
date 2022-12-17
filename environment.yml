@@ -1,0 +1,9 @@
+# This file is used during development & for unit testing
+name: disk_cache
+channels:
+  - defaults
+dependencies:
+  - python=3.8
+  - twine  # A tool for publishing packages on PyPI
+  - pyyaml
+  - pytest

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "disk_cache"
+version = "0.0.1"
+authors = [
+  { name="Robert Voelckner" },
+]
+description = "A small decorator to cache function results transparently to disk."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/robvoe/disk_cache"
+"Bug Tracker" = "https://github.com/robvoe/disk_cache/issues"
