@@ -7,7 +7,7 @@ import uuid
 import warnings
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Any, Generator, Dict, Union, Literal, Callable, Type, List, Tuple
+from typing import Optional, Any, Generator, Dict, Union, Literal, Type, List, Tuple
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import logging
