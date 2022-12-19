@@ -21,10 +21,6 @@ class _DummyConfig(DiskCacheConfig):
     a: int
     b: str
 
-    @staticmethod
-    def _from_dict(dict_: Dict[str, Any]) -> "DiskCacheConfig":
-        return _DummyConfig(a=dict_["a"], b=dict_["b"])
-
 
 def _assert_duration(duration: float, fn: Callable, *args, **kwargs) -> Any:
     _started_at = time.time()

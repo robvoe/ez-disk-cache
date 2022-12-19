@@ -34,11 +34,10 @@ class DiskCacheConfig(ABC):
         """Converts a config object to a dictionary."""
         return self.__dict__
 
-    @staticmethod
-    @abstractmethod
-    def _from_dict(dict_: Dict[str, Any]) -> "DiskCacheConfig":
-        """Converts a dictionary to a config object."""
-        pass
+    @classmethod
+    def _from_dict(cls, dict_: Dict[str, Any]) -> "DiskCacheConfig":
+        """Converts a dictionary back into a config object."""
+        return cls(**dict_)
 
     @staticmethod
     def _cache_is_compatible(passed_to_decorated_function: "DiskCacheConfig", loaded_from_cache: "DiskCacheConfig") \
@@ -79,16 +78,11 @@ def disk_cache(
                                       - "lazy-load-keep" loads so-far unused elements from disk and keeps them in RAM.
                                       - "completely-load-to-memory" a priori loads all items to RAM before continuing.
     @param cache_name_suffix: If not None, this suffix will be part of the generated cache instance folder.
-    @param log_fn: Function that's used for outputting log messages. If None, no log messages will be emitted.
     """
     assert max_cache_instances is None or max_cache_instances > 0, "Value greater than 0 expected!"
     assert max_cache_root_size_mb is None or max_cache_root_size_mb > 0, "Value greater than 0 expected!"
     assert iterable_loading_strategy in ("lazy-load-discard", "lazy-load-keep", "completely-load-to-memory"), \
         "Invalid iterable_loading_strategy parameter!"
-    if max_cache_root_size_mb is None and max_cache_instances is None and ENABLE_WARNINGS is True:
-        _msg = "Warning: It is not recommended to use an unlimited cache!"
-        _LOGGER.warning(_msg)
-        warnings.warn(_msg, stacklevel=3)
 
     if cache_name_suffix is not None:
         assert all(char not in cache_name_suffix for char in " /\n\\, ."), "cache_name_suffix contains invalid chars!"
@@ -199,6 +193,7 @@ def _disk_cache_wrapper(user_function, cache_root_folder: Path, max_cache_root_s
 
     wrapper.cache_root_info = cache_root_info
     wrapper.cache_root_clear = cache_root_clear
+    wrapper.cache_root_folder = cache_root_folder
     return wrapper
 
 
@@ -234,7 +229,7 @@ def _read_cache_instance(cache_instance_path: Path, iterable_loading_strategy: s
     # Try writing to the last-usage-file, in order to keep track of most-recently used cache instance
     try:
         with open(file=cache_instance_path / _LAST_USAGE_FILENAME, mode="w") as file:
-            file.write(f"{time.time():.3f}")
+            file.write(f"{time.time_ns():.3f}")
     except IOError:
         # It's alright if we cannot write to this file!
         _LOGGER.debug(f"Couldn't write to last-usage file '{cache_instance_path.name}/{_LAST_USAGE_FILENAME}'.")
