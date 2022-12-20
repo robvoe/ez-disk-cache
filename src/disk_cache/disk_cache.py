@@ -31,12 +31,22 @@ _LAST_USAGE_FILENAME = ".last-usage"
 class DiskCacheConfig(ABC):
     """This type is the base for parameters passed to the decorated function. It must be sub-typed by the user."""
     def _to_dict(self) -> Dict[str, Any]:
-        """Converts a config object to a dictionary."""
+        """
+        Converts a config object to a dictionary.
+
+        Must be overridden by the user as soon as the config object contains custom or hierarchical data types. However,
+        basic Python data types (int, float, str, bool) work out of the box.
+        """
         return self.__dict__
 
     @classmethod
     def _from_dict(cls, dict_: Dict[str, Any]) -> "DiskCacheConfig":
-        """Converts a dictionary back into a config object."""
+        """
+        Converts a dictionary back into a config object.
+
+        Must be overridden by the user as soon as the config object contains custom or hierarchical data types. However,
+        basic Python data types (int, float, str, bool) work out of the box.
+        """
         return cls(**dict_)
 
     @staticmethod
@@ -45,6 +55,10 @@ class DiskCacheConfig(ABC):
         """
         Checks compatibility between two config objects. Decides if there is a cache hit (True), or a cache
         miss (False). By default, we check both config objects for equality.
+
+        Must be overriden by the user in any of the following cases:
+          - the config object contains custom or hierarchical data types,
+          - only a part of the enclosed data fields is necessary to determine cache compatibility.
         """
         return passed_to_decorated_function == loaded_from_cache
 
@@ -90,19 +104,20 @@ def disk_cache(
         if cache_name_suffix == "":
             cache_name_suffix = None
 
-    if cache_root_folder is None:
-        cache_root_folder = Path.cwd() / "cache_root"
-        _LOGGER.info(f"No specific cache root folder given. Using '{cache_root_folder}'")
-    elif isinstance(cache_root_folder, str):
-        cache_root_folder = Path(cache_root_folder)
-    assert cache_root_folder.is_dir() or cache_root_folder.parent.is_dir(), \
-        f"Neither provided cache_root_folder '{cache_root_folder}', nor its parent '{cache_root_folder.parent}' exist!"
-    if not cache_root_folder.exists():
-        cache_root_folder.mkdir(parents=False, exist_ok=True)
-
     def decorating_function(user_function):
+        _cache_root_folder = cache_root_folder
+        if _cache_root_folder is None:
+            _cache_root_folder = Path.cwd() / f"{user_function.__name__}_cache_root"
+            _LOGGER.info(f"No specific cache root folder given. Using '{_cache_root_folder}'")
+        elif isinstance(_cache_root_folder, str):
+            _cache_root_folder = Path(_cache_root_folder)
+        assert _cache_root_folder.is_dir() or _cache_root_folder.parent.is_dir(), \
+            f"Neither provided cache_root_folder '{_cache_root_folder}', nor its parent '{_cache_root_folder.parent}' exist!"
+        if not _cache_root_folder.exists():
+            _cache_root_folder.mkdir(parents=False, exist_ok=True)
+
         wrapper = _disk_cache_wrapper(
-            user_function=user_function, cache_root_folder=cache_root_folder,
+            user_function=user_function, cache_root_folder=_cache_root_folder,
             max_cache_root_size_mb=max_cache_root_size_mb, max_cache_instances=max_cache_instances,
             iterable_loading_strategy=iterable_loading_strategy, cache_name_suffix=cache_name_suffix)
         return wrapper
@@ -161,7 +176,8 @@ def _disk_cache_wrapper(user_function, cache_root_folder: Path, max_cache_root_s
                 with open(file=_cache_instance_path / _SINGLE_CACHE_VALUE_FILENAME, mode="wb") as _file:
                     pickle.dump(_user_data, _file)
             with open(_cache_instance_path / _CONFIG_YAML_FILENAME, mode="w") as _file:
-                yaml.dump(_config._to_dict(), stream=_file)  # noqa Accessing private member is okay here!
+                yaml.dump(_config._to_dict(),  # noqa Accessing private member is okay here!
+                          stream=_file, encoding="utf-8", sort_keys=False)
         except (SystemExit, KeyboardInterrupt):
             _LOGGER.info("Generation of cache instance was aborted by the user/system. Removing intermediate results.")
             shutil.rmtree(_cache_instance_path)

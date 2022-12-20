@@ -6,9 +6,10 @@ It provides the following features:
 - Automatic cleanup in order to keep user-defined quota,
 - If the decorated function returns an Iterable (List/Tuple/Generator), the values are automatically stored in a shelf and can be retrieved lazily with optional, subsequent discarding. This enables the application to handle sequences of large data chunks that altogether wouldn't fit into memory.
 
-Cache instances are organized as sub-folders inside a **cache root folder**. The latter optionally can be defined by the user and gets passed to the decorator. If not provided by the user, the default cache root location is `main_script_location/cache_root`.
+Cache instances are organized as sub-folders inside a **cache root folder**. The latter optionally can be defined by the user and gets passed to the decorator. If not provided by the user, the default cache root location is `main_script_location/<name of decorated function>_cache_root`. Nevertheless, the user is encouraged to choose a **unique cache root folder** for each decorated function, since *disk_cache* might output cryptic warning messages in case two functions share a mutual cache root folder.
 
 ```python
+import time
 from dataclasses import dataclass
 from disk_cache import DiskCacheConfig, disk_cache
 
@@ -17,13 +18,13 @@ class Config(DiskCacheConfig):
     number: int
     color: str
 
-@disk_cache()  # <-- Cache root folder can be passed here, optionally
-def long_running_function(config: Config):  # <-- Only config parameter object should be here
-    # Do heavy stuff here
+@disk_cache()  # <-- Cache root folder goes here
+def long_running_function(config: Config):  # <-- Only the config parameter object should be here
+    time.sleep(2)  # Do heavy stuff here
     return LargeObjectThatTakesLongToCreate()
 
 long_running_function(config=Config(42, "hello"))  # Takes a long time
-long_running_function(config=Config(42, "hello"))  # Finishes quickly
+long_running_function(config=Config(42, "hello"))  # Returns immediately
 
 print(long_running_function.cache_root_folder)  # Prints the location of cache root folder
 ```
@@ -33,7 +34,12 @@ When calling the decorated function, *disk_cache* decides if there is a matching
 
 Please note: It is strongly recommended that the decorated function accepts the config parameter object as its **only parameter**! Nevertheless, the user may feel free to pass as many arguments to the function as desired ‒ as long as they do not influence the to-be-cached data!
 
-### Iterables (List/Tuple/Generator)
+## Installation
+```bash
+pip install disk_cache
+```
+
+## Iterables (List/Tuple/Generator)
 At cache generation ‒in case an Iterable is returned from a decorated function‒ the Iterable is always saved to a shelf file. This keeps the items individually addressable afterwards.
 
 Loading a cached Iterable can be done in multiple ways, which is defined by providing the `iterable_loading_strategy` parameter to the *disk_cache* decorator:
@@ -44,13 +50,11 @@ Loading a cached Iterable can be done in multiple ways, which is defined by prov
 ```python
 @disk_cache(iterable_loading_strategy="<one of the above values>")
 def long_running_function(config: Config):  # <-- Only config parameter object should be here
-    # Do heavy stuff here
-    return LargeObjectThatTakesLongToCreate()
-```
-
-## Installation
-```bash
-pip install disk_cache
+    objects = []
+    for i in range(1000):
+        time.sleep(3)  # Do heavy stuff here
+        objects += [LargeObjectThatTakesLongToCreate(i)]
+    return objects
 ```
 
 ## Usage examples
@@ -68,7 +72,7 @@ class CarConfig(DiskCacheConfig):
     color: str
 
 @disk_cache("/tmp/car_instances")
-def construct_car(car_config: CarConfig):
+def construct_car(car_config: CarConfig):  # <-- Only the config parameter object should be here
     time.sleep(5)  # Simulate a long process to construct the car
     return f"A fancy {car_config.color} car with wheels of diameter {car_config.wheel_diameter}"
 
@@ -117,7 +121,7 @@ class Config(DiskCacheConfig):
     n_items: int
 
 @disk_cache(iterable_loading_strategy="lazy-load-discard")
-def long_running_generator_function(config: Config):
+def long_running_generator_function(config: Config):  # <-- Only the config parameter object should be here
     for _ in range(config.n_items):
         # Heavy workload
         yield DifficultToObtainObject()
@@ -150,12 +154,12 @@ class CarDealer:
 
     @staticmethod  # <-- This lets us avoid the self parameter in the decorated function
     @disk_cache(cache_root_folder="my/favorite/cache/root/folder")
-    def _order_car(config: Config):
-        time.sleep(2)  # Delivery of a car takes long..
+    def _order_car(config: Config):  # <-- Only the config parameter object should be here
+        time.sleep(2)  # Delivery of a car takes some time
         return f"A fancy {config.color} car"
 
 car_dealer = CarDealer()  # First instantiation takes a while
-car_dealer = CarDealer()  # Second instantiation happens immediately
+car_dealer = CarDealer()  # Second instantiation returns immediately
 print(car_dealer.cars)
 ```
 
@@ -177,7 +181,7 @@ class Config(DiskCacheConfig):
     number: int
 
 @disk_cache("my/second/favorite/cache/root/folder", max_cache_instances=2) 
-def long_running_function(config: Config):  # <-- Only config parameter object should be here
+def long_running_function(config: Config):  # <-- Only the config parameter object should be here
     # Do heavy stuff here
     return LargeObjectThatTakesLongToCreate()
 
@@ -203,7 +207,7 @@ class Config(DiskCacheConfig):
     number: int
 
 @disk_cache("my/third/favorite/cache/root/folder", max_cache_instances=2) 
-def long_running_function(config: Config):  # <-- Only config parameter object should be here
+def long_running_function(config: Config):  # <-- Only the config parameter object should be here
     # Do heavy stuff here
     return LargeObjectThatTakesLongToCreate()
 
@@ -219,8 +223,95 @@ long_running_function(config=Config(2))  # Takes a long time
 ```
 
 ### More complex tasks with config objects
+A *cache instance* is a sub-folder to the cache root folder; it contains the to-be-cached function results along with a **serialized YAML file** of the respective parameter config object. Each time a decorated function gets called by the user, *disk_cache* walks the pool of available cache instances, deserializes their YAML files and checks if one of them is compatible to the given parameter config object. In the default case, *compatible* means equality of all parameter fields.
 
-
+To modify *disk_cache's* behavior of how it (de)serializes YAML files and performs compatibility checks, one can override the following config object functions: `_to_dict()`, `_from_dict()` and `_cache_is_compatible()`. 
 
 #### Selectively matching cache configs
-#### Hierarchical types
+The following example shows how to alter the cache-compatibility behaviour of *disk_cache*.
+
+```python
+import time
+from dataclasses import dataclass
+
+from disk_cache import DiskCacheConfig, disk_cache
+
+@dataclass
+class CarConfig(DiskCacheConfig):
+    model: str
+    color: str  # In this example, we neglect 'color' when searching for compatible cache instances
+
+    @staticmethod
+    def _cache_is_compatible(passed_to_decorated_function: "CarConfig", loaded_from_cache: "CarConfig") -> bool:
+        """Return True, if a cache instance is compatible. False if not."""
+        if passed_to_decorated_function.model == loaded_from_cache.model:
+            return True
+        return False  # At this point, we don't care about 'color'. Everything that matters is 'model'.
+
+@disk_cache("/tmp/car_rental")
+def rent_a_car(car_config: CarConfig):  # <-- Only the config parameter object should be here
+    time.sleep(3)  # Renting a car takes some time
+    return f"A nice {car_config.color} {car_config.model}, rented for one week!"
+
+rent_a_car(CarConfig(model="Tesla Model X", color="red"))  # Takes a while
+rent_a_car(CarConfig(model="Ford Mustang", color="gold"))  # Takes a while
+
+rent_a_car(CarConfig(model="Tesla Model X", color="blue"))  # Returns immediately, since we've already rented a Tesla
+```
+
+#### Custom data types within config objects
+Config objects were designed in a way that they work out-of-the-box with basic Python data types (int, float, str, bool). If however, the config contains custom or hierarchical data types, the user must provide custom `_to_dict` and `_from_dict` conversion logic.
+
+The following example shows how to *manually* provide support for custom config fields. Since the following involves lots of boilerplate code, users are encouraged to take a look at the [dacite](https://github.com/konradhalas/dacite) package.
+
+```python
+import time
+from dataclasses import dataclass
+from typing import Dict, Any
+
+from disk_cache import DiskCacheConfig, disk_cache
+
+class CustomSubType:
+    def __init__(self, a, b):
+        self.a, self.b = a, b
+
+@dataclass
+class Config(DiskCacheConfig):
+    some_number: int
+    custom_parameter: CustomSubType
+
+    def _to_dict(self) -> Dict[str, Any]:
+        """Converts an object to a dict, such that it can be saved to YAML."""
+        dict_ = {
+            "some_number": self.some_number,
+            "custom_parameter": {"a": self.custom_parameter.a, "b": self.custom_parameter.b}
+        }
+        return dict_
+
+    @classmethod
+    def _from_dict(cls, dict_: Dict[str, Any]) -> "Config":
+        """Converts a YAML dict to back an object again."""
+        obj = Config(some_number=dict_["some_number"],
+                     custom_parameter=CustomSubType(a=dict_["custom_parameter"]["a"], b=dict_["custom_parameter"]["b"]))
+        return obj
+
+    @staticmethod
+    def _cache_is_compatible(passed_to_decorated_function: "Config", loaded_from_cache: "Config") -> bool:
+        """Return True, if a cache instance is compatible. False if not."""
+        if passed_to_decorated_function.some_number != loaded_from_cache.some_number:
+            return False
+        if passed_to_decorated_function.custom_parameter.a != loaded_from_cache.custom_parameter.a:
+            return False
+        if passed_to_decorated_function.custom_parameter.b != loaded_from_cache.custom_parameter.b:
+            return False
+        return True
+
+@disk_cache("/tmp/complex_config_subtypes_example")
+def long_running_function(car_config: Config):  # <-- Only the config parameter object should be here
+    time.sleep(3)  # Do heavy stuff here
+    return LargeObjectThatTakesLongToCreate()
+
+long_running_function(Config(some_number=1, custom_parameter=CustomSubType(2, 3)))  # Takes long
+long_running_function(Config(some_number=1, custom_parameter=CustomSubType(2, 3)))  # Returns immediately
+
+```
