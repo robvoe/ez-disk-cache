@@ -26,7 +26,7 @@ def _assert_duration(duration: float, fn: Callable, *args, **kwargs) -> Any:
     _started_at = time.time()
     _value = fn(*args, **kwargs)
     _duration = time.time() - _started_at
-    assert (duration-0.3) <= _duration <= (duration+0.1), f"Duration of {_duration:.3f}s was not in the expected range!"
+    assert (duration-0.3) <= _duration <= (duration+0.3), f"Duration of {_duration:.3f}s was not in the expected range!"
     return _value
 
 
@@ -167,4 +167,4 @@ def test_iterables__lazy_list_and_generator(_temp_dir):
     # Check what happens when we read a cached Iterable, and purge the cache right away
     _values = _assert_duration(0.0, _dummy_fn, _DummyConfig(500, "text"))
     _dummy_fn.cache_root_clear()
-    pytest.raises(FileNotFoundError, lambda: _values[0])
+    pytest.raises(OSError, lambda: _values[0])
