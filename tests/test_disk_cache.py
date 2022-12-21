@@ -7,7 +7,7 @@ from typing import Dict, Any, Callable
 
 import pytest
 
-from src.disk_cache.disk_cache import DiskCacheConfig, disk_cache, LazyList
+from src.ez_disk_cache.disk_cache import DiskCacheConfig, disk_cache, LazyList
 
 
 @pytest.fixture(scope="function")
