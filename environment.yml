@@ -1,5 +1,5 @@
 # This file is used for development purposes
-name: disk_cache
+name: ez-disk-cache
 channels:
   - defaults
 dependencies:

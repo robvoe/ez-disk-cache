@@ -1,4 +1,4 @@
-# disk_cache
+# ez-disk-cache
 A decorator that provides smart disk-caching for results of long-running or memory-intensive functions.
 
 It provides the following features:
@@ -6,7 +6,7 @@ It provides the following features:
 - Automatic cleanup in order to keep user-defined quota,
 - If the decorated function returns an Iterable (List/Tuple/Generator), the values are automatically stored in a shelf and can be retrieved lazily with optional, subsequent discarding. This enables the application to handle sequences of large data chunks that altogether wouldn't fit into memory.
 
-Cache instances are organized as sub-folders inside a **cache root folder**. The latter optionally can be defined by the user and gets passed to the decorator. If not provided by the user, the default cache root location is `main_script_location/<name of decorated function>_cache_root`. Nevertheless, the user is encouraged to choose a **unique cache root folder** for each decorated function, since *disk_cache* might output cryptic warning messages in case two functions share a mutual cache root folder.
+Cache instances are organized as sub-folders inside a **cache root folder**. The latter optionally can be defined by the user and gets passed to the decorator. If not provided by the user, the default cache root location is `main_script_location/<name of decorated function>_cache_root`. Nevertheless, the user is encouraged to choose a **unique cache root folder** for each decorated function, since *ez-disk-cache* might output cryptic warning messages in case two functions share a mutual cache root folder.
 
 ```python
 import time
@@ -30,19 +30,19 @@ print(long_running_function.cache_root_folder)  # Prints the location of cache r
 ```
 
 ### Config parameter object
-When calling the decorated function, *disk_cache* decides if there is a matching cache instance. This is done via a **config parameter object**, which is passed to the decorated function. It has to be a *dataclass* and inherit from `DiskCacheConfig`.
+When calling the decorated function, *ez-disk-cache* decides if there is a matching cache instance. This is done via a **config parameter object**, which is passed to the decorated function. It has to be a *dataclass* and inherit from `DiskCacheConfig`.
 
 Please note: It is strongly recommended that the decorated function accepts the config parameter object as its **only parameter**! Nevertheless, the user may feel free to pass as many arguments to the function as desired ‒ as long as they do not influence the to-be-cached data!
 
 ## Installation
 ```bash
-pip install disk-cache
+pip install ez-disk-cache
 ```
 
 ## Iterables (List/Tuple/Generator)
 At cache generation ‒in case an Iterable is returned from a decorated function‒ the Iterable is always saved to a shelf file. This keeps the items individually addressable afterwards.
 
-Loading a cached Iterable can be done in multiple ways, which is defined by providing the `iterable_loading_strategy` parameter to the *disk_cache* decorator:
+Loading a cached Iterable can be done in multiple ways, which is defined by providing the `iterable_loading_strategy` parameter to the *ez-disk-cache* decorator:
 - `completely-load-to-memory` loads all items to RAM prior to returning them in a `list` to the application,
 - `lazy-load-discard` returns a `LazyList` to the application. Each time the user accesses an item, it is loaded from disk and discarded right after using. This option might be preferable when working with sequences of large data items, which altogether barely fit in RAM.
 - `lazy-load-keep` returns a `LazyList` to the application. With each access, an item is loaded from disk and cached in RAM. Next accesses to the same item will take place without any delay from accessing disk.
@@ -109,7 +109,7 @@ Construction took 0.00 seconds
 Since the caches keep existing after the end of a script, the construction of the above cars takes zero time in the second run.
  
 ### Caching generator results and retrieving as LazyList
-The following example shows how *disk_cache* can be used to cache generator function results. This can be particularly helpful when handling huge datasets that won't fit to RAM as a whole.
+The following example shows how *ez-disk-cache* can be used to cache generator function results. This can be particularly helpful when handling huge datasets that won't fit to RAM as a whole.
 ```python
 from dataclasses import dataclass
 from typing import List
@@ -223,12 +223,12 @@ long_running_function(config=Config(2))  # Takes a long time
 ```
 
 ### More complex tasks with config objects
-A *cache instance* is a sub-folder to the cache root folder; it contains the to-be-cached function results along with a **serialized YAML file** of the respective parameter config object. Each time a decorated function gets called by the user, *disk_cache* walks the pool of available cache instances, deserializes their YAML files and checks if one of them is compatible to the given parameter config object. In the default case, *compatible* means equality of all parameter fields.
+A *cache instance* is a sub-folder to the cache root folder; it contains the to-be-cached function results along with a **serialized YAML file** of the respective parameter config object. Each time a decorated function gets called by the user, *ez-disk-cache* walks the pool of available cache instances, deserializes their YAML files and checks if one of them is compatible to the given parameter config object. In the default case, *compatible* means equality of all parameter fields.
 
-To modify *disk_cache's* behavior of how it (de)serializes YAML files and performs compatibility checks, one can override the following config object functions: `_to_dict()`, `_from_dict()` and `_cache_is_compatible()`. 
+To modify *ez-disk-cache's* behavior of how it (de)serializes YAML files and performs compatibility checks, one can override the following config object functions: `_to_dict()`, `_from_dict()` and `_cache_is_compatible()`. 
 
 #### Selectively matching cache configs
-The following example shows how to alter the cache-compatibility behaviour of *disk_cache*.
+The following example shows how to alter the cache-compatibility behaviour of *ez-disk-cache*.
 
 ```python
 import time
