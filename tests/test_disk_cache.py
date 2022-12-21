@@ -163,8 +163,3 @@ def test_iterables__lazy_list_and_generator(_temp_dir):
     # Test LazyList's iterator
     for _item in _values:
         assert _item == "text"
-
-    # Check what happens when we read a cached Iterable, and purge the cache right away
-    _values = _assert_duration(0.0, _dummy_fn, _DummyConfig(500, "text"))
-    _dummy_fn.cache_root_clear()
-    pytest.raises(OSError, lambda: _values[0])
