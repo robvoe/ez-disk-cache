@@ -11,7 +11,7 @@ Cache instances are organized as sub-folders inside a **cache root folder**. The
 ```python
 import time
 from dataclasses import dataclass
-from disk_cache import DiskCacheConfig, disk_cache
+from ez_disk_cache import DiskCacheConfig, disk_cache
 
 @dataclass
 class Config(DiskCacheConfig):
@@ -64,7 +64,7 @@ The following example demonstrates the coexistence of multiple cache instances a
 ```python
 import time
 from dataclasses import dataclass
-from disk_cache import DiskCacheConfig, disk_cache
+from ez_disk_cache import DiskCacheConfig, disk_cache
 
 @dataclass
 class CarConfig(DiskCacheConfig):
@@ -114,7 +114,7 @@ The following example shows how *ez-disk-cache* can be used to cache generator f
 from dataclasses import dataclass
 from typing import List
 
-from disk_cache import DiskCacheConfig, disk_cache, LazyList
+from ez_disk_cache import DiskCacheConfig, disk_cache, LazyList
 
 @dataclass
 class Config(DiskCacheConfig):
@@ -140,7 +140,7 @@ As mentioned above, decorated functions are strongly recommended to expect exact
 ```python
 import time
 from dataclasses import dataclass
-from disk_cache import DiskCacheConfig, disk_cache
+from ez_disk_cache import DiskCacheConfig, disk_cache
 
 @dataclass
 class Config(DiskCacheConfig):
@@ -174,7 +174,7 @@ As soon as a given cache root folder exceeds one of these limits, old cache inst
 
 ```python
 from dataclasses import dataclass
-from disk_cache import DiskCacheConfig, disk_cache
+from ez_disk_cache import DiskCacheConfig, disk_cache
 
 @dataclass
 class Config(DiskCacheConfig):
@@ -200,7 +200,7 @@ A decorated function itself offers a few methods that may be used to manage the 
 
 ```python
 from dataclasses import dataclass
-from disk_cache import DiskCacheConfig, disk_cache
+from ez_disk_cache import DiskCacheConfig, disk_cache
 
 @dataclass
 class Config(DiskCacheConfig):
@@ -234,7 +234,7 @@ The following example shows how to alter the cache-compatibility behaviour of *e
 import time
 from dataclasses import dataclass
 
-from disk_cache import DiskCacheConfig, disk_cache
+from ez_disk_cache import DiskCacheConfig, disk_cache
 
 @dataclass
 class CarConfig(DiskCacheConfig):
@@ -269,7 +269,7 @@ import time
 from dataclasses import dataclass
 from typing import Dict, Any
 
-from disk_cache import DiskCacheConfig, disk_cache
+from ez_disk_cache import DiskCacheConfig, disk_cache
 
 class CustomSubType:
     def __init__(self, a, b):
