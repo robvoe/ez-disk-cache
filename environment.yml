@@ -1,9 +1,11 @@
-# This file is used during development & for unit testing
+# This file is used for development purposes
 name: disk_cache
 channels:
   - defaults
 dependencies:
   - python=3.8
-  - twine  # A tool for publishing packages on PyPI
+  - twine  # Helps publishing packages on PyPI
   - pyyaml
   - pytest
+  - pip:
+      - build  # Creates built distributions (wheels)

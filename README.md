@@ -36,7 +36,7 @@ Please note: It is strongly recommended that the decorated function accepts the 
 
 ## Installation
 ```bash
-pip install disk_cache
+pip install disk-cache
 ```
 
 ## Iterables (List/Tuple/Generator)

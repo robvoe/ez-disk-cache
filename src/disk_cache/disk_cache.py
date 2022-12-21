@@ -8,7 +8,7 @@ import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Any, Generator, Dict, Union, Literal, Type, List, Tuple
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass
 import logging
 
@@ -67,7 +67,7 @@ def disk_cache(
         cache_root_folder: Optional[Union[str, Path]] = None,
         max_cache_root_size_mb: Optional[float] = None, max_cache_instances: Optional[int] = None,
         iterable_loading_strategy: Literal["lazy-load-discard", "lazy-load-keep", "completely-load-to-memory"] =
-                "lazy-load-keep",
+        "lazy-load-keep",
         cache_name_suffix: Optional[str] = None):
     """
     This decorator provides smart disk-caching for results of long-running functions. In case the decorated function
@@ -112,7 +112,7 @@ def disk_cache(
         elif isinstance(_cache_root_folder, str):
             _cache_root_folder = Path(_cache_root_folder)
         assert _cache_root_folder.is_dir() or _cache_root_folder.parent.is_dir(), \
-            f"Neither provided cache_root_folder '{_cache_root_folder}', nor its parent '{_cache_root_folder.parent}' exist!"
+            f"Neither provided cache_root_folder {_cache_root_folder} nor its parent {_cache_root_folder.parent} exist!"
         if not _cache_root_folder.exists():
             _cache_root_folder.mkdir(parents=False, exist_ok=True)
 
@@ -254,7 +254,7 @@ def _read_cache_instance(cache_instance_path: Path, iterable_loading_strategy: s
     if _is_iterable is True:
         _shelf_filename = cache_instance_path / _ITERABLE_CACHE_VALUE_FILENAME
         if iterable_loading_strategy in ("lazy-load-discard", "lazy-load-keep"):
-            _LOGGER.debug(f"Lazy-loading iterable")
+            _LOGGER.debug("Lazy-loading iterable")
             return LazyList(cache_file_path=_shelf_filename, iterable_loading_strategy=iterable_loading_strategy)
         elif iterable_loading_strategy == "completely-load-to-memory":
             _LOGGER.info("Loading iterable to RAM. This could take a while..")
@@ -380,8 +380,9 @@ def _cleanup(cache_root_folder: Path, max_cache_root_size_mb: Optional[float], m
         _LOGGER.info(f"Cache root folder exceeds its limits, start doing some cleanup..   "
                      f"(overall_cache_size_mb={_overall_size_mb:,.1f}, n_cache_instances={_n_instances:,})")
         _n_deleted = 0
-        _instance_usage_time__paths = {_get_cache_instance_last_usage_time(path): path for path in cache_root_folder.iterdir() if
-                                       path.is_dir() and path != youngest_cache_instance_path}
+        _instance_usage_time__paths = \
+            {_get_cache_instance_last_usage_time(path): path for path in cache_root_folder.iterdir() if
+             path.is_dir() and path != youngest_cache_instance_path}
         _sorted_deletable_paths = [p for _, p in sorted(_instance_usage_time__paths.items(), key=lambda item: item[0])]
         while _n_instances >= 2 and _cleanup_necessary is True:
             shutil.rmtree(_sorted_deletable_paths[0])

@@ -1,0 +1,31 @@
+name: Code Checks
+
+on:
+  pull_request:
+    types: [ opened, reopened, synchronize, edited, closed ]
+  push:
+    branches:
+      - master
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ '3.8', '3.9', '3.10', '3.11']
+
+    name: Python ${{ matrix.python-version }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+      - name: Install dependencies
+        run: pip install pytest pyyaml flake8
+        # run: pip install -e
+      - name: Run tests
+        run: python -m pytest tests
+      - name: Run flake8
+        run: flake8 src/ --max-line-length=120

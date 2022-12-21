@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "disk_cache"
-version = "0.0.1"
+version = "0.0.4"
 authors = [
   { name="Robert Voelckner" },
 ]
@@ -16,6 +16,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+dependencies = ["pyyaml>=6.0"]
 
 [project.urls]
 "Homepage" = "https://github.com/robvoe/disk_cache"
