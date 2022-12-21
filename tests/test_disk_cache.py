@@ -26,7 +26,7 @@ def _assert_duration(duration: float, fn: Callable, *args, **kwargs) -> Any:
     _started_at = time.time()
     _value = fn(*args, **kwargs)
     _duration = time.time() - _started_at
-    assert (duration-0.1) <= _duration <= (duration+0.1), f"Duration of {_duration:.3f}s was not in the expected range!"
+    assert (duration-0.3) <= _duration <= (duration+0.1), f"Duration of {_duration:.3f}s was not in the expected range!"
     return _value
 
 
@@ -82,12 +82,12 @@ def test_helper_functions__cache_info(_temp_dir):
 def test_helper_functions__cache_clear(_temp_dir):
     @disk_cache(cache_root_folder=_temp_dir)
     def _dummy_fn(config: _DummyConfig):
-        time.sleep(0.3)
+        time.sleep(0.5)
         return config.a
 
     _config_param = _DummyConfig(1, "1")
 
-    _value = _assert_duration(0.3, _dummy_fn, _config_param)
+    _value = _assert_duration(0.5, _dummy_fn, _config_param)
     assert _value == _config_param.a
 
     _value = _assert_duration(0.0, _dummy_fn, _config_param)
@@ -95,20 +95,20 @@ def test_helper_functions__cache_clear(_temp_dir):
 
     _dummy_fn.cache_root_clear()
 
-    _value = _assert_duration(0.3, _dummy_fn, _config_param)
+    _value = _assert_duration(0.5, _dummy_fn, _config_param)
     assert _value == _config_param.a
 
 
 def test_cleanup(_temp_dir):
     @disk_cache(cache_root_folder=_temp_dir, max_cache_instances=2)
     def _dummy_fn(config: _DummyConfig):
-        time.sleep(0.3)
+        time.sleep(0.5)
         return config.a
 
     # Build up cache of two cache instances
-    _value = _assert_duration(0.3, _dummy_fn, _DummyConfig(1, "1"))
+    _value = _assert_duration(0.5, _dummy_fn, _DummyConfig(1, "1"))
     assert _value == 1
-    _value = _assert_duration(0.3, _dummy_fn, _DummyConfig(2, "2"))
+    _value = _assert_duration(0.5, _dummy_fn, _DummyConfig(2, "2"))
     assert _value == 2
 
     # Read cache instance #1 and thus mark it as "recently used"
@@ -116,11 +116,11 @@ def test_cleanup(_temp_dir):
     assert _value == 1
 
     # Generate new cache instance #3 and override instance #2, since it was not recently used
-    _value = _assert_duration(0.3, _dummy_fn, _DummyConfig(3, "3"))
+    _value = _assert_duration(0.5, _dummy_fn, _DummyConfig(3, "3"))
     assert _value == 3
 
     # Make sure that instance #2 was really deleted
-    _value = _assert_duration(0.3, _dummy_fn, _DummyConfig(2, "2"))
+    _value = _assert_duration(0.5, _dummy_fn, _DummyConfig(2, "2"))
     assert _value == 2
 
     # Verify cache instances #2 and #3 are present
@@ -130,17 +130,17 @@ def test_cleanup(_temp_dir):
     assert _value == 3
 
     # Generate new cache instance #4 and override instance #2, since it was not recently used
-    _value = _assert_duration(0.3, _dummy_fn, _DummyConfig(4, "4"))
+    _value = _assert_duration(0.5, _dummy_fn, _DummyConfig(4, "4"))
     assert _value == 4
 
 
 def test_iterables__list(_temp_dir):
     @disk_cache(cache_root_folder=_temp_dir, iterable_loading_strategy="completely-load-to-memory")
     def _dummy_fn(config: _DummyConfig):
-        time.sleep(0.3)
+        time.sleep(0.5)
         return [config.b for _ in range(config.a)]
 
-    _values = _assert_duration(0.3, _dummy_fn, _DummyConfig(1000, "text"))
+    _values = _assert_duration(0.5, _dummy_fn, _DummyConfig(1000, "text"))
     assert isinstance(_values, list) and len(_values) == 1000 and all(v == _values[0] for v in _values)
 
     _values = _assert_duration(0.0, _dummy_fn, _DummyConfig(1000, "text"))
@@ -148,13 +148,13 @@ def test_iterables__list(_temp_dir):
 
 
 def test_iterables__lazy_list_and_generator(_temp_dir):
-    @disk_cache(cache_root_folder=_temp_dir, iterable_loading_strategy="lazy-load-keep")
+    @disk_cache(cache_root_folder=_temp_dir, iterable_loading_strategy="lazy-load-discard")
     def _dummy_fn(config: _DummyConfig):
-        time.sleep(0.3)
+        time.sleep(0.5)
         for _ in range(config.a):
             yield config.b
 
-    _values = _assert_duration(0.3, _dummy_fn, _DummyConfig(500, "text"))
+    _values = _assert_duration(0.5, _dummy_fn, _DummyConfig(500, "text"))
     assert isinstance(_values, LazyList) and len(_values) == 500 and all(v == _values[0] for v in _values)
 
     _values = _assert_duration(0.0, _dummy_fn, _DummyConfig(500, "text"))
