@@ -3,7 +3,7 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Dict, Any, Callable
+from typing import Dict, Any, Callable, Literal
 
 import pytest
 
@@ -30,23 +30,24 @@ def _assert_duration(duration: float, fn: Callable, *args, **kwargs) -> Any:
     return _value
 
 
-def test_different_function_parameters(_temp_dir):
-    @disk_cache(cache_root_folder=_temp_dir)
+@pytest.mark.parametrize("config_filetype", ["yaml", "pkl"])
+def test_different_function_parameters(_temp_dir, config_filetype):
+    @disk_cache(cache_root_folder=_temp_dir, config_filetype=config_filetype)
     def _long_running_function__no_param():
         time.sleep(0.3)
         return 42
 
-    @disk_cache(cache_root_folder=_temp_dir)
+    @disk_cache(cache_root_folder=_temp_dir, config_filetype=config_filetype)
     def _long_running_function__param_but_not_the_right_one(number: int):
         time.sleep(0.3)
         return 42
 
-    @disk_cache(cache_root_folder=_temp_dir)
+    @disk_cache(cache_root_folder=_temp_dir, config_filetype=config_filetype)
     def _long_running_function__single_param(config: _DummyConfig):
         time.sleep(0.3)
         return 42
 
-    @disk_cache(cache_root_folder=_temp_dir)
+    @disk_cache(cache_root_folder=_temp_dir, config_filetype=config_filetype)
     def _long_running_function__multiple_params(config: _DummyConfig, number: int, string: str = "hi"):
         time.sleep(0.3)
         return 24
@@ -61,8 +62,9 @@ def test_different_function_parameters(_temp_dir):
     pytest.raises(UserWarning, _long_running_function__multiple_params, _DummyConfig(1, "hello"), 23)
 
 
-def test_helper_functions__cache_info(_temp_dir):
-    @disk_cache(cache_root_folder=_temp_dir)
+@pytest.mark.parametrize("config_filetype", ["yaml", "pkl"])
+def test_helper_functions__cache_info(_temp_dir, config_filetype):
+    @disk_cache(cache_root_folder=_temp_dir, config_filetype=config_filetype)
     def _dummy_fn(config: _DummyConfig):
         return config.a
 
@@ -79,8 +81,9 @@ def test_helper_functions__cache_info(_temp_dir):
     assert _cache_root_info["n_cache_instances"] == 3
 
 
-def test_helper_functions__cache_clear(_temp_dir):
-    @disk_cache(cache_root_folder=_temp_dir)
+@pytest.mark.parametrize("config_filetype", ["yaml", "pkl"])
+def test_helper_functions__cache_clear(_temp_dir, config_filetype):
+    @disk_cache(cache_root_folder=_temp_dir, config_filetype=config_filetype)
     def _dummy_fn(config: _DummyConfig):
         time.sleep(0.5)
         return config.a
@@ -99,8 +102,9 @@ def test_helper_functions__cache_clear(_temp_dir):
     assert _value == _config_param.a
 
 
-def test_cleanup(_temp_dir):
-    @disk_cache(cache_root_folder=_temp_dir, max_cache_instances=2)
+@pytest.mark.parametrize("config_filetype", ["yaml", "pkl"])
+def test_cleanup(_temp_dir, config_filetype):
+    @disk_cache(cache_root_folder=_temp_dir, max_cache_instances=2, config_filetype=config_filetype)
     def _dummy_fn(config: _DummyConfig):
         time.sleep(0.5)
         return config.a
@@ -134,8 +138,10 @@ def test_cleanup(_temp_dir):
     assert _value == 4
 
 
-def test_iterables__list(_temp_dir):
-    @disk_cache(cache_root_folder=_temp_dir, iterable_loading_strategy="completely-load-to-memory")
+@pytest.mark.parametrize("config_filetype", ["yaml", "pkl"])
+def test_iterables__list(_temp_dir, config_filetype):
+    @disk_cache(cache_root_folder=_temp_dir, iterable_loading_strategy="completely-load-to-memory",
+                config_filetype=config_filetype)
     def _dummy_fn(config: _DummyConfig):
         time.sleep(0.5)
         return [config.b for _ in range(config.a)]
@@ -147,8 +153,10 @@ def test_iterables__list(_temp_dir):
     assert isinstance(_values, list) and len(_values) == 1000 and all(v == _values[0] for v in _values)
 
 
-def test_iterables__lazy_list_and_generator(_temp_dir):
-    @disk_cache(cache_root_folder=_temp_dir, iterable_loading_strategy="lazy-load-discard")
+@pytest.mark.parametrize("config_filetype", ["yaml", "pkl"])
+def test_iterables__lazy_list_and_generator(_temp_dir, config_filetype):
+    @disk_cache(cache_root_folder=_temp_dir, iterable_loading_strategy="lazy-load-discard",
+                config_filetype=config_filetype)
     def _dummy_fn(config: _DummyConfig):
         time.sleep(0.5)
         for _ in range(config.a):

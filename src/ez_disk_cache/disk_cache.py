@@ -22,6 +22,8 @@ ENABLE_WARNINGS = True  # Set this to False, in order to avoid emitting "warning
 _ITERABLE_TYPES = (list, tuple, Generator)
 
 _CONFIG_YAML_FILENAME = "config.yaml"
+_CONFIG_PKL_FILENAME = "config.pkl"
+
 _SINGLE_CACHE_VALUE_FILENAME = "single-cache.bin"
 _ITERABLE_CACHE_VALUE_FILENAME = "iterable-cache.shelf.bin"
 _LAST_USAGE_FILENAME = ".last-usage"
@@ -36,6 +38,9 @@ class DiskCacheConfig(ABC):
 
         Must be overridden by the user as soon as the config object contains custom or hierarchical data types. However,
         basic Python data types (int, float, str, bool) work out of the box.
+
+        In case the user chooses config filetype "pkl", this method is not called at all - it thus can be left
+        unimplemented.
         """
         return self.__dict__
 
@@ -46,6 +51,9 @@ class DiskCacheConfig(ABC):
 
         Must be overridden by the user as soon as the config object contains custom or hierarchical data types. However,
         basic Python data types (int, float, str, bool) work out of the box.
+
+        In case the user chooses config filetype "pkl", this method is not called at all - it thus can be left
+        unimplemented.
         """
         return cls(**dict_)
 
@@ -68,7 +76,7 @@ def disk_cache(
         max_cache_root_size_mb: Optional[float] = None, max_cache_instances: Optional[int] = None,
         iterable_loading_strategy: Literal["lazy-load-discard", "lazy-load-keep", "completely-load-to-memory"] =
         "lazy-load-keep",
-        cache_name_suffix: Optional[str] = None):
+        cache_name_suffix: Optional[str] = None, config_filetype: Literal["yaml", "pkl"] = "yaml"):
     """
     This decorator provides smart disk-caching for results of long-running functions. In case the decorated function
     returns an Iterable (List/Tuple/Generator), its items are saved to a shelf so that they can be accessed
@@ -92,11 +100,15 @@ def disk_cache(
                                       - "lazy-load-keep" loads so-far unused elements from disk and keeps them in RAM.
                                       - "completely-load-to-memory" a priori loads all items to RAM before continuing.
     @param cache_name_suffix: If not None, this suffix will be part of the generated cache instance folder.
+    @param config_filetype: Type of the config that is saved alongside the cached data. Default is "yaml", which
+                            keeps the config file human-readable. Choose "pkl" instead, if the DiskCacheConfig object
+                            cannot easily implement _from_dict() and _to_dict() → these won't be called in that case.
     """
     assert max_cache_instances is None or max_cache_instances > 0, "Value greater than 0 expected!"
     assert max_cache_root_size_mb is None or max_cache_root_size_mb > 0, "Value greater than 0 expected!"
     assert iterable_loading_strategy in ("lazy-load-discard", "lazy-load-keep", "completely-load-to-memory"), \
         "Invalid iterable_loading_strategy parameter!"
+    assert config_filetype in ("yaml", "pkl")
 
     if cache_name_suffix is not None:
         assert all(char not in cache_name_suffix for char in " /\n\\, ."), "cache_name_suffix contains invalid chars!"
@@ -119,7 +131,8 @@ def disk_cache(
         wrapper = _disk_cache_wrapper(
             user_function=user_function, cache_root_folder=_cache_root_folder,
             max_cache_root_size_mb=max_cache_root_size_mb, max_cache_instances=max_cache_instances,
-            iterable_loading_strategy=iterable_loading_strategy, cache_name_suffix=cache_name_suffix)
+            iterable_loading_strategy=iterable_loading_strategy, cache_name_suffix=cache_name_suffix,
+            config_filetype=config_filetype)
         return wrapper
 
     return decorating_function
@@ -144,12 +157,12 @@ def _get_config_from_params(user_function, args: Tuple, kwargs: Dict[str, Any]) 
 
 def _disk_cache_wrapper(user_function, cache_root_folder: Path, max_cache_root_size_mb: Optional[float],
                         max_cache_instances: Optional[int], iterable_loading_strategy: str,
-                        cache_name_suffix: Optional[str]):
+                        cache_name_suffix: Optional[str], config_filetype: str):
     def wrapper(*args, **kwargs) -> Any:
         _config = _get_config_from_params(user_function=user_function, args=args, kwargs=kwargs)
 
         _cache_instance_path = _lookup_cache(config_provided_to_user_function=_config,
-                                             cache_root_folder=cache_root_folder)
+                                             cache_root_folder=cache_root_folder, config_filetype=config_filetype)
         if _cache_instance_path is not None:
             _LOGGER.info(f"Compatible cache instance found: {_cache_instance_path.name}")
             _cached_data = _read_cache_instance(cache_instance_path=_cache_instance_path,
@@ -175,9 +188,16 @@ def _disk_cache_wrapper(user_function, cache_root_folder: Path, max_cache_root_s
                 _LOGGER.debug("Saving user data as single blob")
                 with open(file=_cache_instance_path / _SINGLE_CACHE_VALUE_FILENAME, mode="wb") as _file:
                     pickle.dump(_user_data, _file)
-            with open(_cache_instance_path / _CONFIG_YAML_FILENAME, mode="w") as _file:
-                yaml.dump(_config._to_dict(),  # noqa Accessing private member is okay here!
-                          stream=_file, encoding="utf-8", sort_keys=False)
+            # Save the config alongside the actual data
+            if config_filetype == "yaml":
+                with open(_cache_instance_path / _CONFIG_YAML_FILENAME, mode="w") as _file:
+                    yaml.dump(_config._to_dict(),  # noqa Accessing private member is okay here!
+                              stream=_file, encoding="utf-8", sort_keys=False)
+            elif config_filetype == "pkl":
+                with open(_cache_instance_path / _CONFIG_PKL_FILENAME, mode="wb") as _file:
+                    pickle.dump(_config, file=_file)
+            else:
+                raise NotImplementedError("It seems that a config filetype is missing here!")
         except (SystemExit, KeyboardInterrupt):
             _LOGGER.info("Generation of cache instance was aborted by the user/system. Removing intermediate results.")
             shutil.rmtree(_cache_instance_path)
@@ -213,19 +233,28 @@ def _disk_cache_wrapper(user_function, cache_root_folder: Path, max_cache_root_s
     return wrapper
 
 
-def _lookup_cache(config_provided_to_user_function: DiskCacheConfig, cache_root_folder: Path) -> Optional[Path]:
+def _lookup_cache(config_provided_to_user_function: DiskCacheConfig, cache_root_folder: Path, config_filetype: str) \
+        -> Optional[Path]:
     """Checks all cache instances and looks if any of them matches the given config."""
     _LOGGER.debug("Start looking for a compatible cache instance.")
     _config_subtype: Type[DiskCacheConfig] = type(config_provided_to_user_function)
     _cache_subdirs = [path for path in cache_root_folder.iterdir() if path.is_dir()]
     for _sub_path in _cache_subdirs:
-        _config_yaml_path = _sub_path / _CONFIG_YAML_FILENAME
-        if _config_yaml_path.is_file():
+        _config_filepath = _sub_path / (_CONFIG_YAML_FILENAME if config_filetype == "yaml" else _CONFIG_PKL_FILENAME)
+        if _config_filepath.is_file():
             try:
-                with open(_config_yaml_path, mode="r", encoding="utf-8") as file:
-                    _loaded_yaml_config_dict = yaml.safe_load(file)
-                _loaded_yaml_config = \
-                    _config_subtype._from_dict(_loaded_yaml_config_dict)  # noqa Accessing private member is okay here!
+                if config_filetype == "yaml":
+                    with open(_config_filepath, mode="r", encoding="utf-8") as _file:
+                        _loaded_yaml_config_dict = yaml.safe_load(_file)
+                    _loaded_config_from_cache = \
+                        _config_subtype._from_dict(_loaded_yaml_config_dict)  # noqa Accessing private member is okay!
+                elif config_filetype == "pkl":
+                    with open(_config_filepath, mode="rb") as _file:
+                        _loaded_config_from_cache = pickle.load(_file)
+                else:
+                    raise NotImplementedError("It seems that a config filetype is missing here.")
+            except NotImplementedError:
+                raise
             except BaseException as e:
                 _msg = f"While parsing cache instance '{_sub_path.name}', an unexpected error occurred. " \
                        f"Skipping cache instance.  Original error message: {str(e)}"
@@ -233,7 +262,7 @@ def _lookup_cache(config_provided_to_user_function: DiskCacheConfig, cache_root_
             else:  # No exception occurred. Check if cache instance is compatible to what we look for..
                 if _config_subtype._cache_is_compatible(  # noqa Accessing private member is okay here!
                         passed_to_decorated_function=config_provided_to_user_function,
-                        loaded_from_cache=_loaded_yaml_config):
+                        loaded_from_cache=_loaded_config_from_cache):
                     return _sub_path
     _LOGGER.debug("Could not find any compatible cache instance")
     return None
